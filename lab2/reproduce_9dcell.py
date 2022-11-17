@@ -24,7 +24,7 @@ import topo
 sys.setrecursionlimit(2147483647)
 
 # Setup for Dcell
-num_ports = 3
+num_ports = 25
 
 dcell = topo.Dcell(num_ports)
 

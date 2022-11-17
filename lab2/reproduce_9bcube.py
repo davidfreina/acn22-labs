@@ -24,8 +24,8 @@ import topo
 sys.setrecursionlimit(2147483647)
 
 # Setup for Jellyfish
-num_servers = 9
-num_ports = 3
+num_servers = 512
+num_ports = 8
 
 bcupe = topo.Bcube(num_servers, num_ports)
 
