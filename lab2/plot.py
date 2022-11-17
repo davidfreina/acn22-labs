@@ -20,3 +20,5 @@ if __name__ == "__main__":
 
     ft_topo = topo.Fattree(num_ports, True)
     jf_topo = topo.Jellyfish(num_servers, num_switches, num_ports, True)
+    dcell_topo = topo.Dcell(num_ports, True)
+    bcube_topo = topo.Bcube(num_ports ** 2, num_ports, True)

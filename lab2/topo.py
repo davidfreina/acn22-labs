@@ -19,6 +19,8 @@ import sys
 from itertools import count
 from operator import itemgetter
 from time import time
+from math import log
+import networkx as nx
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import ConnectionPatch
@@ -94,6 +96,12 @@ class Node:
             if node in (edge.lnode, edge.rnode):
                 return edge
         return None
+
+    # Returns bcube for server and level for switch
+    def get_bcube(self):
+        if self.type == "server":
+            return int(self.id.split('.')[0])
+        return int(self.id.split('.')[0])
 
 
 class Jellyfish:
@@ -279,8 +287,6 @@ class Jellyfish:
         plt.savefig("plot_jellyfish_{}.png".format(num_ports))
         plt.clf()
 
-        sys.exit()
-
 
 class Fattree:
 
@@ -397,16 +403,249 @@ class Fattree:
             plt.clf()
 
 
-class BCube:
+class Bcube:
+    def __init__(self, num_servers, num_ports, plot=False):
+        self.servers = []
+        self.switches = []
 
+        k = int((log(num_servers) - log(num_ports)) / log(num_ports))
+
+        if num_ports * num_ports ** k < num_servers:
+            print('invalid input detected')
+            print(
+                'with {} ports per bcube_0 switch only {} total servers will be available'.format(num_ports, num_ports * num_ports ** k))
+
+        self.generate(num_ports, k, plot)
+
+    def generate(self, num_server_bcube, num_bcube, plot):
+
+        num_servers = num_server_bcube ** (num_bcube + 1)
+        for i in range(num_servers):
+            server = Node('{}.{}'.format(i // num_server_bcube, i %
+                          num_server_bcube), "server")
+            self.servers.append(server)
+
+        for level in range(num_bcube + 1):
+            lower = num_server_bcube ** level
+            upper = num_server_bcube ** (level + 1)
+            for i in range(num_server_bcube ** num_bcube):
+                switch = Node('{}.{}'.format(level, i),
+                              "switch-{}".format(level))
+                self.switches.append(switch)
+                start = i % lower + i // lower * upper
+                hosts = range(start, start + upper, lower)
+                for v in hosts:
+                    switch.add_edge(self.servers[v])
+        if plot:
+            self.plot(num_bcube, num_server_bcube,
+                      (num_server_bcube ** num_bcube), num_servers)
+        return
+
+    def plot(self, k, num_servers_per_bcube, switches_per_level, num_servers):
+        fig, ax = plt.subplots(figsize=(num_servers, 10))
+        ax.set_xlim(0, len(self.servers))
+        ax.set_ylim(0, k+1)
+        plt.axis('off')
+
+        switch_start = num_servers / 2 - switches_per_level + 1
+
+        plotted = []
+        plotted_nodes = {}
+        for switch in self.switches:
+            switch_level = int(switch.type.split("-")[1])
+            position = int(switch.id.split(".")[1])
+            plotted_nodes[switch] = ax.annotate(switch.id, xy=(switch_start + position, switch_level + 1), xycoords="data",
+                                                va="center", ha="center",
+                                                bbox=dict(boxstyle="round", fc="w"))
+
+        for server in self.servers:
+            split = server.id.split(".")
+            plotted_server = ax.annotate(server.id, xy=(int(split[0]) * num_servers_per_bcube + int(split[1]), 0), xycoords="data",
+                                         va="center", ha="center",
+                                         bbox=dict(boxstyle="round", fc="w"))
+
+            for edge in server.edges:
+                for node in [edge.rnode, edge.lnode]:
+                    if node == server:
+                        continue
+                    con = ConnectionPatch(plotted_server.xy, plotted_nodes[node].xy, "data", "data", arrowstyle="-", shrinkA=2, shrinkB=2,
+                                          mutation_scale=1, fc="w")
+                    ax.add_artist(con)
+
+        fig.savefig("plot_bcube_{}.png".format(num_servers))
+        fig.clf()
+        plt.clf()
+
+
+class Dcell:
+    # num_ports = n, level = n + 1 (with n > 0)
     def __init__(self, num_ports, plot=False):
         self.servers = []
         self.switches = []
-        self.generate(num_ports, plot)
+        self.dcells = []
+        self.plot_edges = []
+        self.edge_cnt = 0
+        self.level = 1
+        self.rec_cnt = 0
+        # offset[0] = (numbers of cells on level = index, numbers of servers on level = index)
+        self.offsets = []
+        self.g_l = 1
+        self.num_ports = num_ports
+        self.t_previous = num_ports
 
-    def generate(self, num_ports, plot):
+        lv = 1
+        while lv <= self.level:
+            self.g_l = self.g_l * (num_ports + 1)
+            self.t_previous = self.g_l * num_ports
+            lv += 1
 
+        self.generate(num_ports, self.level)
+
+        for i in range(len(self.servers)):
+            for j in range(len(self.servers[i].edges)):
+                edge_tuple = (
+                    self.servers[i].edges[j].lnode.id, self.servers[i].edges[j].rnode.id)
+                self.plot_edges.append(edge_tuple)
+
+        print(self.plot_edges)
+        if plot:
+            self.plot()
+
+    def generate(self, num_ports, level, prefix=None):
+
+        if prefix is None:
+            prefix = (0, num_ports)
+
+        # Building Dcell0
+        if level == 0:
+            miniswitch = Node(self.rec_cnt, "switch")
+            for i in range(num_ports):
+                server_id = "{}.{}".format(self.rec_cnt, i)
+                server = Node(server_id, "server")
+                miniswitch.add_edge(server)
+                self.servers.append(server)
+                self.edge_cnt += 1
+            self.switches.append(miniswitch)
+            self.rec_cnt += 1
+            return
+
+        for j in range(self.g_l):
+            self.generate(num_ports, level - 1, prefix=(j, num_ports))
+
+        for dcell in range(self.t_previous):
+            for server in range(dcell + 1, self.g_l):
+                index1 = "{}.{}".format(dcell, server - 1)
+                index2 = "{}.{}".format(server, dcell)
+                node1 = self.find_node(index1)
+                node2 = self.find_node(index2)
+                if node1 is None or node2 is None:
+                    print("Node could not be found.")
+                    sys.exit()
+                node1.add_edge(node2)
         return
+
+    def find_node(self, index):
+        # print(index)
+        for node in self.servers:
+            if node.id == index:
+                return node
+        # print(self.servers)
+
+        return None
+
+    def generate_seq(self, num_ports, level, plot=False):
+
+        if self.level == 0:
+            miniswitch = Node(0, "switch")
+            for c0 in range(num_ports):
+                server_id = "{}.{}".format(self.rec_cnt, c0)
+                server = Node(server_id, "server")
+                miniswitch.add_edge(server)
+                self.servers.append(server)
+                self.edge_cnt += 1
+            self.switches.append(miniswitch)
+            return
+
+        lv = 1
+        self.offsets.append(tuple((0, num_ports)))
+        while lv <= level:
+            self.g_l = self.g_l * (num_ports + 1)
+            self.t_previous = self.g_l * num_ports
+            cell_offset = self.g_l
+            server_offset = self.t_previous
+            offset = (cell_offset, server_offset)
+            self.offsets.append(offset)
+            lv += 1
+
+        for dcell in range(self.g_l):
+            miniswitch = Node(dcell, "switch")
+            for serv in range(num_ports):
+                server_id = "{}.{}".format(dcell, serv)
+                server = Node(server_id, "server")
+                miniswitch.add_edge(server)
+                self.servers.append(server)
+
+        for lev in range(level + 1):
+            dc = Node(lev, "dcell")
+            offs = 1
+            for ser in range(self.offsets[lev][offs]):
+                dc.edges.append(ser)
+            self.dcells.append(dc)
+
+        for i in range(len(self.dcells)):
+            print(self.dcells[i].edges)
+
+        test = 0
+        while test < 20:
+            self.connect_nodes(test, test + 4, test + 5)
+            test += 5
+
+    def connect_nodes(self, tl_start, tl_end, gl_end):
+        tl_start = self.offsets[0][0]
+        tl_end = self.offsets[1][1]
+        gl_end = self.offsets[1][0]
+
+        for i in range(tl_start, tl_end):
+            for j in range(0, gl_end):
+
+                uid_1, uid_2 = j, i
+                index1 = "{}.{}".format(i, uid_1)
+                index2 = "{}.{}".format(j, uid_2)
+                node1 = self.find_node(index1)
+                node2 = self.find_node(index2)
+                if node1 is None or node2 is None:
+                    print("Node could not be found.")
+                    sys.exit()
+                node1.add_edge(node2)
+
+            print("Cells: {}".format(i))
+            print("Server: {}".format(j))
+            print("---------------")
+
+        # def connect_dcells(self, num_ports):
+        #     print(self.servers)
+        #     for dcell in range(self.t_previous):
+        #         server = dcell + 1
+        #         while server < num_ports:
+
+        #             index1 = "{}.{}".format(dcell, server - 1)
+        #             index2 = "{}.{}".format(server, dcell)
+        #             node1 = self.find_node(index1)
+        #             node2 = self.find_node(index2)
+        #             if node1 is None or node2 is None:
+        #                 print("Node could not be found.")
+        #                 sys.exit()
+        #             node1.add_edge(node2)
+        #             server += 1
+
+    def plot(self):
+        G = nx.Graph()
+        G.add_edges_from(self.plot_edges)
+        print(self.plot_edges[1][0])
+        print(G.number_of_edges())
+        nx.draw(G, with_labels=True)
+        plt.savefig("plot_dcell_{}.png".format(self.num_ports))
+        plt.clf()
 
 
 def dijkstra(start_node, switches, end_node=None):
