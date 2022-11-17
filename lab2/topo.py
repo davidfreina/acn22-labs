@@ -18,12 +18,15 @@ import random
 import sys
 from itertools import count
 from operator import itemgetter
+from time import time
 
 import matplotlib.pyplot as plt
-import networkx as nx
 from matplotlib.patches import ConnectionPatch
+import numpy as np
 
 # Class for an edge in the graph
+
+
 class Edge:
     def __init__(self):
         self.lnode = None
@@ -64,7 +67,7 @@ class Node:
         return (self.id == other.id and self.type == other.type)
 
     def __hash__(self):
-            return hash(str(self.id) + str(self.type))
+        return hash(str(self.id) + str(self.type))
 
     # Add an edge connected to another node
     def add_edge(self, node):
@@ -95,7 +98,7 @@ class Node:
 
 class Jellyfish:
 
-    def __init__(self, num_servers, num_switches, num_ports, plot = False):
+    def __init__(self, num_servers, num_switches, num_ports, plot=False):
         self.servers = []
         self.switches = []
         self.generate(num_servers, num_switches, num_ports, plot)
@@ -121,7 +124,6 @@ class Jellyfish:
             self.switches.append(switch_node)
             edge_cnt += server_per_switch
 
-
         switches_to_connect = self.switches.copy()
         switches_connected = []
         retries = 0
@@ -146,189 +148,143 @@ class Jellyfish:
                     switches_to_connect.remove(node2)
                     switches_connected.append(node2)
 
-
-
-        # cnt = 0
-        # for i in self.switches:
-        #     if len(i.edges) != num_ports:
-        #         cnt += 1
-        # print(cnt)
-        # print("----------------")
-        # print(len(switches_to_connect))
-        # Connect last free switches to network until only one switch with one open port remains
-
-
-        # Adding switches with >= 2 free ports
-        # for avail in self.switches:
-        #     if num_ports - len(avail.edges) >= 2 and avail not in switches_to_connect:
-        #         switches_to_connect.add(avail)
-        # print(switches_to_connect)
-        # for i in self.switches:
-        #     if len(i.edges) != num_ports:
-        #         print(i)
-        #         print(len(i.edges))
-        # print("-----------------")
-
-
-        # if (len(switches_to_connect) == 1) and (len(switches_to_connect[0].edges) == num_ports - 1):
-        #     return
-
-        to_remove = []
-        for switch in switches_to_connect:
-            if len(switch.edges) == num_ports - 1:
-                to_remove.append(switch)
-                switches_connected.append(switch)
-        for switch in to_remove:
-            switches_to_connect.remove(switch)
-
-
         if not switches_to_connect:
+            if plot:
+                self.plot(num_ports)
             return
 
-        while switches_to_connect:
+        while len(switches_to_connect) > 1:
             avail_sw = switches_to_connect[0]
-            # if num_ports - len(avail_sw.edges) < 2:
-            #     print("Removing: {}".format(avail_sw))
-            #     switches_to_connect.remove(avail_sw)
-            #     continue
 
-            while True:
-                tmp = random.choice(switches_connected)
-                if tmp != avail_sw and not tmp.is_neighbor(avail_sw) and tmp not in switches_to_connect:
-                    break
+            if len(avail_sw.edges) is num_ports - 1:
+                switches_to_connect.remove(avail_sw)
+                switches_connected.append(avail_sw)
+                continue
 
-            # print("avail_sw: {}".format(avail_sw))
-            # print("len(avail_sw.edges): {}".format(len(avail_sw.edges)))
-            # print(avail_sw.edges)
-            # print(len(tmp.edges))
-
+            tmp = random.choice(switches_connected)
             rm_edg = random.choice(tmp.edges)
             lnod = rm_edg.lnode
             rnod = rm_edg.rnode
 
-            # print(rm_edg)
-            # print(lnod)
-            # print(rnod)
-
-
             if not (avail_sw.is_neighbor(lnod) or avail_sw.is_neighbor(rnod)):
-                #print("Tmp: {}".format(tmp))
-                #print("RM Edg: {}".format(rm_edg))
-
+                rm_edg.remove()
                 avail_sw.add_edge(lnod)
                 avail_sw.add_edge(rnod)
-                # self.switches[avail_sw.id].add_edge(lnod)
-                # self.switches[avail_sw.id].add_edge(rnod)
 
-                # print(avail_sw.edges)
-
-                # if rm_edg in avail_sw.edges:
-                #     avail_sw.remove_edge(rm_edg)
-                # if rm_edg in self.switches[avail_sw.id].edges:
-                #     self.switches[avail_sw.id].remove_edge(rm_edg)
-
-                # Does not need to be removed in switches_to_connect
-                # because tmp is not in switches_to_connect
-                # therefore the link can also not exist there
-                rm_edg.remove()
-                # print(len(tmp.edges))
-
-
-                # print(len(avail_sw.edges))
-                if len(avail_sw.edges) == num_ports or len(avail_sw.edges) == num_ports - 1:
+                if len(avail_sw.edges) == num_ports:
                     switches_to_connect.remove(avail_sw)
                     switches_connected.append(avail_sw)
 
-                # for i in self.switches:
-                #     if num_ports - len(i.edges) >= 2 and i not in switches_to_connect:
-                #         switches_to_connect.add(i)
+        if len(switches_to_connect) == 1 or len(switches_to_connect) == 0:
+            switches_connected.append(switches_to_connect.pop())
+        else:
+            print("error")
+            sys.exit(1)
 
-
-
-
-
-
-        # # If still switch(es) with >= 2 free ports are available
-        # if switches_to_connect:
-
-        #     for i in switches_to_connect:
-        #         avail_sw = switches_to_connect[i]
-        #         print(len(avail_sw.edges))
-        #         while True:
-        #             tmp = random.choice(self.switches)
-        #             if tmp != avail_sw: break
-        #         print("-----------------")
-        #         rm_edg = random.choice(tmp.edges)
-        #         tmp.remove_edge(rm_edg)
-
-        #         print(rm_edg)
-        #         print(rm_edg.lnode)
-        #         print(rm_edg.rnode)
-
-        #         print(len(tmp.edges))
-
-
-        if switches_to_connect:
-            print("not fully connected")
-
+        switches_connected.sort(key=lambda switch: switch.id)
         self.switches = switches_connected
 
+        # for i in self.switches:
+        #     if len(i.edges) != num_ports and len(i.edges) != num_ports - 1:
+        #         print(i)
+        #         print(len(i.edges))
 
-
-
-        print("-----------------")
-        # while len(switches_to_connect) > 3:
-
-        #     tmp = random.choice(self.switches)
-        #     sw_to_connect = switches_to_connect[0]
-        #     print(len(sw_to_connect.edges))
-
-        #     if tmp == sw_to_connect:
-        #         continue
-
-        #     edg_to_remove = random.choice(tmp.edges)
-
-        #     sw_to_connect.add_edge(edg_to_remove.lnode)
-        #     sw_to_connect.add_edge(edg_to_remove.rnode)
-
-        #     tmp.remove_edge(edg_to_remove)
-
-        #     self.switches[sw_to_connect.id].add_edge(edg_to_remove.lnode)
-        #     self.switches[sw_to_connect.id].add_edge(edg_to_remove.rnode)
-
-        #     if len(self.switches[sw_to_connect.id].edges) > num_ports - 2:
-        #         switches_to_connect.remove(sw_to_connect)
-
-        for i in self.switches:
-            if len(i.edges) != num_ports:
-                print(i)
-                print(len(i.edges))
-
-        if plot: self.plot(num_ports)
+        if plot:
+            self.plot(num_ports)
 
     def plot(self, num_ports):
-        nodes = []
-        edgs = []
-        for i in range(10):
-            nd = random.choice(self.switches)
-            if(nd not in nodes):
-                nodes.append(nd)
+        fig, ax = plt.subplots(
+            subplot_kw={'projection': 'polar'}, figsize=(20, 20))
+        plt.axis('off')
+        ax.set_rmax(5)
+        ax.set_rticks([])
 
-        for i in range(len(nodes)):
-            nd = nodes[i]
-            for j in range(len(nd.edges)):
-                tpl = (nd.edges[j].lnode.id, nd.edges[j].rnode.id)
-                edgs.append(tpl)
+        switches = self.switches.copy()
+        servers = self.servers.copy()
 
-        JF_GRAPH = nx.Graph(edgs)
-        pos = nx.spring_layout(JF_GRAPH)
-        nx.draw(JF_GRAPH, pos, with_labels=True)
+        tor_switches = []
+        for server in servers:
+            if len(server.edges) != 1:
+                print('too many switches')
+                sys.exit()
+
+            edge = server.edges[0]
+
+            if server == edge.rnode:
+                if edge.lnode not in tor_switches:
+                    tor_switches.append(edge.lnode)
+            else:
+                if edge.rnode not in tor_switches:
+                    tor_switches.append(edge.rnode)
+
+        tor_switch_offset = np.pi * 2 / len(tor_switches)
+        full_circle = np.pi * 2
+
+        server_offset = tor_switch_offset / len(tor_switches[0].edges)
+
+        switch_plots = {}
+        done_edges = []
+
+        while full_circle > 0 and tor_switches:
+            full_circle -= tor_switch_offset
+            current_switch = tor_switches.pop(0)
+            switches.remove(current_switch)
+            current_switch_plot = ax.annotate(current_switch.id, xy=(full_circle, 4),
+                                              va="center", ha="center",
+                                              bbox=dict(boxstyle="round", fc="w"))
+            switch_plots[current_switch.id] = current_switch_plot
+
+            for idx, edge in enumerate(current_switch.edges):
+                if edge.rnode == current_switch and edge.lnode.type == "server":
+                    done_edges.append(
+                        tuple((edge.lnode.id, current_switch.id)))
+                    current_server_plot = ax.annotate(edge.lnode.id, xy=(full_circle - server_offset * idx, 5),
+                                                      va="center", ha="center",
+                                                      bbox=dict(boxstyle="round", fc="w"))
+                elif edge.rnode.type == "server":
+                    done_edges.append(
+                        tuple((edge.rnode.id, current_switch.id)))
+                    current_server_plot = ax.annotate(edge.rnode.id, xy=(full_circle - server_offset * idx, 5),
+                                                      va="center", ha="center",
+                                                      bbox=dict(boxstyle="round", fc="w"))
+
+                con = ConnectionPatch(current_switch_plot.xy, current_server_plot.xy, "data", "data", arrowstyle="-", shrinkA=2, shrinkB=2,
+                                      mutation_scale=1, fc="w")
+                ax.add_artist(con)
+
+        switch_offset = np.pi * 2 / len(switches)
+        full_circle = np.pi * 2
+
+        while switches:
+            full_circle -= switch_offset
+            current_switch = switches.pop(0)
+            current_switch_plot = ax.annotate(current_switch.id, xy=(full_circle, 3),
+                                              va="center", ha="center",
+                                              bbox=dict(boxstyle="round", fc="w"))
+            switch_plots[current_switch.id] = current_switch_plot
+
+        for idx, switch_plot in enumerate(switch_plots):
+            switch = self.switches[switch_plot]
+            for edge in switch.edges:
+                if edge.rnode.type != "server" and edge.lnode.type != "server" and tuple((edge.rnode.id, edge.lnode.id)) not in done_edges and tuple((edge.lnode.id, edge.rnode.id)) not in done_edges:
+                    if edge.rnode.id == switch_plot:
+                        switch2_plot = switch_plots[edge.lnode.id]
+                    else:
+                        switch2_plot = switch_plots[edge.rnode.id]
+
+                    con = ConnectionPatch(switch_plots[switch_plot].xy, switch2_plot.xy, "data", "data", arrowstyle="-", shrinkA=2, shrinkB=2,
+                                          mutation_scale=1, fc="w")
+                    ax.add_artist(con)
+
         plt.savefig("plot_jellyfish_{}.png".format(num_ports))
         plt.clf()
 
+        sys.exit()
+
+
 class Fattree:
 
-    def __init__(self, num_ports, plot = False):
+    def __init__(self, num_ports, plot=False):
         self.servers = []
         self.switches = []
         self.generate(num_ports, plot)
@@ -349,8 +305,10 @@ class Fattree:
         pod_switches = {}
 
         if plot:
-            fig, ax = plt.subplots(figsize=(num_pods * num_switches_per_layer * PLOT_NODE_SPACING * 2, num_core_switches))
-            ax.set_xlim(-1, num_pods * num_switches_per_layer * PLOT_NODE_SPACING)
+            fig, ax = plt.subplots(figsize=(
+                num_pods * num_switches_per_layer * PLOT_NODE_SPACING * 2, num_core_switches))
+            ax.set_xlim(-1, num_pods * num_switches_per_layer *
+                        PLOT_NODE_SPACING)
             ax.set_ylim(0, 4)
             plt.axis('off')
 
@@ -364,8 +322,8 @@ class Fattree:
                 self.switches.append(core_sw)
                 if plot:
                     plot_core_sw = ax.annotate(core_sw_id, xy=(plot_core_sw_x, 4), xycoords="data",
-                                        va="center", ha="center",
-                                        bbox=dict(boxstyle="round", fc="w"))
+                                               va="center", ha="center",
+                                               bbox=dict(boxstyle="round", fc="w"))
                     plot_nodes[core_sw_id] = plot_core_sw
                     plot_core_sw_x += 1
 
@@ -380,15 +338,15 @@ class Fattree:
                     plot_agg_sw_base_x = pod_idx * num_switches_per_layer * PLOT_NODE_SPACING
 
                     plot_agg_sw = ax.annotate(agg_sw_id, xy=(plot_agg_sw_base_x + plot_agg_sw_x_offset, 3), xycoords="data",
-                                    va="center", ha="center",
-                                    bbox=dict(boxstyle="round", fc="w"))
+                                              va="center", ha="center",
+                                              bbox=dict(boxstyle="round", fc="w"))
                     plot_nodes[agg_sw_id] = plot_agg_sw
 
                 for core_sw in core_switches:
                     core_sw.add_edge(agg_sw)
                     if plot:
                         con = ConnectionPatch(plot_nodes[core_sw.id].xy, plot_agg_sw.xy, "data", "data", arrowstyle="->", shrinkA=2, shrinkB=2,
-                                mutation_scale=1, fc="w")
+                                              mutation_scale=1, fc="w")
                         ax.add_artist(con)
 
                 pod_switches[pod_idx]["agg-sw"].append(agg_sw)
@@ -399,8 +357,8 @@ class Fattree:
 
                 if plot:
                     plot_edge_sw = ax.annotate(edge_sw_id, xy=(plot_agg_sw_base_x + plot_agg_sw_x_offset, 2), xycoords="data",
-                            va="center", ha="center",
-                            bbox=dict(boxstyle="round", fc="w"))
+                                               va="center", ha="center",
+                                               bbox=dict(boxstyle="round", fc="w"))
                     plot_nodes[edge_sw_id] = plot_edge_sw
 
                 pod_switches[pod_idx]["edge-sw"].append(edge_sw)
@@ -413,10 +371,10 @@ class Fattree:
 
                     if plot:
                         plot_srv = ax.annotate(srv_id, xy=(-1.5 + srv_idx + plot_agg_sw_base_x + plot_agg_sw_x_offset, 1), xycoords="data",
-                                va="center", ha="center",
-                                bbox=dict(boxstyle="round", fc="w"))
+                                               va="center", ha="center",
+                                               bbox=dict(boxstyle="round", fc="w"))
                         con = ConnectionPatch(plot_nodes[edge_sw_id].xy, plot_srv.xy, "data", "data", arrowstyle="->", shrinkA=2, shrinkB=2,
-                                mutation_scale=1, fc="w")
+                                              mutation_scale=1, fc="w")
                         ax.add_artist(con)
 
                     self.servers.append(srv)
@@ -430,7 +388,7 @@ class Fattree:
                     agg_sw.add_edge(edge_sw)
                     if plot:
                         con = ConnectionPatch(plot_nodes[agg_sw.id].xy, plot_nodes[edge_sw.id].xy, "data", "data", arrowstyle="->", shrinkA=2, shrinkB=2,
-                                mutation_scale=1, fc="w")
+                                              mutation_scale=1, fc="w")
                         ax.add_artist(con)
 
         if plot:
@@ -441,7 +399,7 @@ class Fattree:
 
 class BCube:
 
-    def __init__(self, num_ports, plot = False):
+    def __init__(self, num_ports, plot=False):
         self.servers = []
         self.switches = []
         self.generate(num_ports, plot)
@@ -451,7 +409,7 @@ class BCube:
         return
 
 
-def dijkstra(start_node, switches):
+def dijkstra(start_node, switches, end_node=None):
     # unvisited = {**{node: {"weight": None, "path": []} for node in switches}, **{node: {"weight": None, "path": []} for node in servers}}
     unvisited = {node: {"distance": None, "path": []} for node in switches}
     unvisited[start_node] = {"distance": 0, "path": []}
@@ -484,6 +442,13 @@ def dijkstra(start_node, switches):
                     # unvisited[neighbor] = new_weight
                     unvisited[neighbor]["path"] = unvisited[current_node]["path"].copy()
                     unvisited[neighbor]["path"].append(current_node)
+
+                    if neighbor is end_node:
+                        pqueue.task_done()
+                        for node in unvisited:
+                            unvisited[node]["path"].append(node)
+                        return unvisited
+
                     # save path for reconstruction
                     # path[neighbor] = current_node
 
@@ -494,8 +459,9 @@ def dijkstra(start_node, switches):
 
     return unvisited
 
+
 def find_path(start_node, end_node, switches):
-    distances = dijkstra(start_node, switches)
+    distances = dijkstra(start_node, switches, end_node)
 
     if distances[end_node] is None:
         return {"distance": None, "path": []}
@@ -504,6 +470,8 @@ def find_path(start_node, end_node, switches):
 
 
 def ksp_yen(start_node, end_node, switches, max_k=2):
+    print("start yen for start: {}, end: {}".format(start_node, end_node))
+    start = time()
     distances = dijkstra(start_node, switches)
 
     A = [distances[end_node]]
@@ -547,14 +515,15 @@ def ksp_yen(start_node, end_node, switches, max_k=2):
                         edges_removed.append([edge.rnode, edge.lnode])
                         edge.remove()
 
-
             path_spur = find_path(spur_node, end_node, switches)
             # print("path_spur: {}".format(path_spur))
 
             if path_spur["distance"]:
                 path_total = root_path[:-1] + path_spur["path"]
-                distance_total = distances[spur_node]["distance"] + path_spur["distance"]
-                potential_path = {"distance": distance_total, "path": path_total}
+                distance_total = distances[spur_node]["distance"] + \
+                    path_spur["distance"]
+                potential_path = {
+                    "distance": distance_total, "path": path_total}
                 # print(potential_path)
 
                 if potential_path not in B:
@@ -569,8 +538,16 @@ def ksp_yen(start_node, end_node, switches, max_k=2):
             next_path = B.pop(0)
             if next_path not in A:
                 # print("add to A")
+                # Adding a shortcut if more than 8 paths have been found
+                # and the next path is longer than the last one we can
+                # simply stop the execution because ECMP 8 and 64 are done
                 A.append(next_path)
+                if k > 6:
+                    if next_path["distance"] > A[0]["distance"]:
+                        print("Stopped Yen after k: {}, time: {}s, paths: {}".format(
+                            k, time() - start, len(A)))
+                        return A
                 break
 
-        # print("k")
+    print("Stopped Yen after k: {}, time: {}s".format(k, time() - start))
     return A

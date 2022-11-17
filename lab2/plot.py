@@ -15,11 +15,8 @@ if __name__ == "__main__":
     # formula simplified
     num_switches = int(5 * num_ports ** 2 / 4)
 
-    print("Generating Topology for: {} ports, {} servers and {} switches".format(num_ports, num_servers, num_switches))
+    print("Generating Topology for: {} ports, {} servers and {} switches".format(
+        num_ports, num_servers, num_switches))
 
     ft_topo = topo.Fattree(num_ports, True)
     jf_topo = topo.Jellyfish(num_servers, num_switches, num_ports, True)
-
-    sys.exit(0)
-
-
