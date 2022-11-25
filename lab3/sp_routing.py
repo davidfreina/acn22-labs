@@ -37,6 +37,7 @@ import threading
 
 import topo
 
+
 class SPRouter(app_manager.RyuApp):
 
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -60,11 +61,12 @@ class SPRouter(app_manager.RyuApp):
         switches = [switch.dp.id for switch in switch_list]
         self.net.add_nodes_from(switches)
 
-
         link_list = get_link(self, None)
-        links = [(link.src.dpid, link.dst.dpid, {'port': link.src.port_no}) for link in link_list]
+        links = [(link.src.dpid, link.dst.dpid, {
+                  'port': link.src.port_no}) for link in link_list]
         self.net.add_edges_from(links)
-        links=[(link.dst.dpid, link.src.dpid, {'port':link.dst.port_no}) for link in link_list]
+        links = [(link.dst.dpid, link.src.dpid, {
+                  'port': link.dst.port_no}) for link in link_list]
         self.net.add_edges_from(links)
 
         if len(self.net.nodes()) == self.num_switches and not self.topo_initialized:
@@ -79,7 +81,6 @@ class SPRouter(app_manager.RyuApp):
         # for s in switches:
         #     print (" \t\t" + str(s))
 
-
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
@@ -92,14 +93,15 @@ class SPRouter(app_manager.RyuApp):
                                           ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 0, match, actions)
 
-
     # Add a flow entry to the flow-table
+
     def add_flow(self, datapath, priority, match, actions):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
         # Construct flow_mod message and send it
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        inst = [parser.OFPInstructionActions(
+            ofproto.OFPIT_APPLY_ACTIONS, actions)]
         mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
                                 match=match, instructions=inst)
         datapath.send_msg(mod)
@@ -119,13 +121,6 @@ class SPRouter(app_manager.RyuApp):
         dst = eth.dst
         src = eth.src
 
-        # print(self.net.edges())
-        # print(dst_ip)
-        # print(dst_ip in self.net)
-        # input()
-        # if dpid != 1:
-        #     return
-
         if dst_ip in self.net:
             path = nx.shortest_path(self.net, src_ip, dst_ip)
             if dpid in path:
@@ -135,14 +130,6 @@ class SPRouter(app_manager.RyuApp):
                 # print("dpid %s not in path from %s to %s", dpid, src_ip, dst_ip)
                 return
 
-        # if src_ip not in self.net:
-        #     self.net.add_node(src_ip)
-        #     self.net.add_edge(dpid, src_ip, port=in_port)
-        #     self.net.add_edge(src_ip, dpid)
-        # if dst_ip in self.net:
-        #     path = nx.shortest_path(self.net, src_ip, dst_ip)
-        #     next_hop = path[path.index(dpid) + 1]
-        #     out_port = self.net[dpid][next_hop]['port']
         else:
             out_port = ofproto.OFPP_FLOOD
 
@@ -160,7 +147,6 @@ class SPRouter(app_manager.RyuApp):
             datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER, in_port=in_port,
             actions=actions, data=msg.data)
         datapath.send_msg(out)
-
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
@@ -181,19 +167,8 @@ class SPRouter(app_manager.RyuApp):
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
             return
 
-
         # self.logger.info("\tpacket in: %s %s %s %s", dpid, src, dst, in_port)
 
-        # if src not in self.net: #Learn it
-        #     self.net.add_node(src) # Add a node to the graph
-        #     self.net.add_edge(src, dpid) # Add a link from the node to it's edge switch
-        #     self.net.add_edge(dpid, src, port=in_port)  # Add link from switch to node and make sure you are identifying the output port.
-        # if dst in self.net:
-        #     path=nx.shortest_path(self.net, src, dst) # get shortest path
-        #     next=path[path.index(dpid) + 1] #get next hop
-        #     out_port=self.net[dpid][next]['port'] #get output port
-        # else:
-        #     out_port = ofproto.OFPP_FLOOD
         self.ip_to_port.setdefault(dpid, {})
 
         if eth.ethertype == ether_types.ETH_TYPE_IP:
@@ -224,7 +199,7 @@ class SPRouter(app_manager.RyuApp):
                 actions = [parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
 
                 out = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
-                                        in_port=in_port, actions=actions, data=msg.data)
+                                          in_port=in_port, actions=actions, data=msg.data)
                 datapath.send_msg(out)
             else:
                 # print("\t\tsuccessful arp response, adding routing")

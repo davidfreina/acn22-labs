@@ -360,12 +360,3 @@ def ksp_yen(start_node, end_node, switches, max_k=2):
 
     print("Stopped Yen after k: {}, time: {}s".format(k, time() - start))
     return A
-
-
-# if __name__ == "__main__":
-#     fatty = Fattree(4)
-#     net = Mininet(topo=fatty)
-#     net.start()
-#     net.waitConnected()
-#     net.pingAll()
-#     print("finished pinging")
