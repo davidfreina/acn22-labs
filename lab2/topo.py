@@ -641,9 +641,7 @@ class Dcell:
     def plot(self):
         G = nx.Graph()
         G.add_edges_from(self.plot_edges)
-        print(self.plot_edges[1][0])
-        print(G.number_of_edges())
-        nx.draw(G, with_labels=True)
+        nx.draw(G, with_labels=True, pos=nx.spring_layout(G), font_weight='bold')
         plt.savefig("plot_dcell_{}.png".format(self.num_ports))
         plt.clf()
 
