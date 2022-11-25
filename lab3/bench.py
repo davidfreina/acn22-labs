@@ -31,6 +31,7 @@ from mininet.util import waitListening, custom
 
 import topo
 
+
 class FattreeNet(Topo):
     """
     Create a fat-tree network in Mininet
@@ -86,6 +87,7 @@ class FattreeNet(Topo):
                                  "s{}".format(agg_sw.id.replace(".", "")),
                                  bw=15, delay='5ms')
 
+
 def make_mininet_instance(graph_topo):
 
     net_topo = FattreeNet(graph_topo)
@@ -116,7 +118,7 @@ def benchmark(graph_topo, warmup, avg):
     time.sleep(5)
 
     info('*** Running pingAll 10 times for benchmarking purposes ***\n')
-    for i in range(10):
+    for _ in range(10):
         start = time.time()
         net.pingAll()
         end = time.time()
@@ -131,21 +133,37 @@ def benchmark(graph_topo, warmup, avg):
     n313 = net.getNodeByName("h10313")
 
     hosts_nearest = {n002, n003}
-    hosts_interpod = {n002, n012}
+    hosts_intrapod = {n002, n012}
     hosts_furthest = {n002, n313}
 
-    ping_nearest = net.pingFull(hosts_nearest)
-    time.sleep(2)
+    ping_nearest_avg0 = 0
+    ping_nearest_avg1 = 0
+    for _ in range(10):
+        ping_nearest = net.pingFull(hosts_nearest)
+        ping_nearest_avg0 += ping_nearest[1][2][3]
+        ping_nearest_avg1 += ping_nearest[0][2][3]
+        time.sleep(2)
     perf_nearest = net.iperf(hosts_nearest, udpBw='15M')
     time.sleep(2)
 
-    ping_interpod = net.pingFull(hosts_interpod)
-    time.sleep(2)
-    perf_interpod = net.iperf(hosts_interpod, udpBw='15M')
+    ping_intrapod_avg0 = 0
+    ping_intrapod_avg1 = 0
+    for _ in range(10):
+        ping_intrapod = net.pingFull(hosts_intrapod)
+        ping_intrapod_avg0 += ping_intrapod[1][2][3]
+        ping_intrapod_avg1 += ping_intrapod[0][2][3]
+        time.sleep(2)
+    perf_intrapod = net.iperf(hosts_intrapod, udpBw='15M')
     time.sleep(2)
 
-    ping_furthest = net.pingFull(hosts_furthest)
-    time.sleep(2)
+    ping_furthest_avg0 = 0
+    ping_furthest_avg1 = 0
+
+    for _ in range(10):
+        ping_furthest = net.pingFull(hosts_furthest)
+        ping_furthest_avg0 += ping_furthest[1][2][3]
+        ping_furthest_avg1 += ping_furthest[0][2][3]
+        time.sleep(2)
     perf_furthest = net.iperf(hosts_furthest, udpBw='15M')
     time.sleep(2)
 
@@ -153,33 +171,33 @@ def benchmark(graph_topo, warmup, avg):
     info('*** Stopping network ***\n')
     net.stop()
 
-    return warmup, avg, ping_nearest, perf_nearest, ping_interpod, perf_interpod, ping_furthest, perf_furthest
+    return warmup, avg, perf_nearest, ping_nearest_avg0, ping_nearest_avg1, perf_intrapod, ping_intrapod_avg0, ping_intrapod_avg1, perf_furthest, ping_furthest_avg0, ping_furthest_avg1
 
 
 ft_topo = topo.Fattree(4)
 warmup = 0
 avg = 0
 
-warmup, avg, ping_nearest, perf_nearest, ping_interpod, perf_interpod, ping_furthest, perf_furthest = benchmark(
+warmup, avg, perf_nearest, ping_nearest_avg0, ping_nearest_avg1, perf_intrapod, ping_intrapod_avg0, ping_intrapod_avg1, perf_furthest, ping_furthest_avg0, ping_furthest_avg1 = benchmark(
     ft_topo, warmup, avg)
 
 print("Discovering topology took: \t{}".format(warmup))
 print("Average of 10 pingAll took: \t{}".format(avg / 10))
 print("----------------------------------------")
 print("Results nearest:")
-print("ping avg rtt h10002 -> h10003: {}ms".format(ping_nearest[1][2][3]))
-print("ping avg rtt h10003 -> h10002: {}ms".format(ping_nearest[0][2][3]))
+print("ping avg rtt h10002 -> h10003: {}ms".format(ping_nearest_avg0 / 10))
+print("ping avg rtt h10003 -> h10002: {}ms".format(ping_nearest_avg1 / 10))
 print(
     "iperf h10002 {} <-> h10003 {}".format(perf_nearest[0], perf_nearest[1]))
 
-print("Results interpod:")
-print("ping avg rtt h10002 -> h10012: {}ms".format(ping_interpod[1][2][3]))
-print("ping avg rtt h10012 -> h10002: {}ms".format(ping_interpod[0][2][3]))
+print("Results intrapod:")
+print("ping avg rtt h10002 -> h10012: {}ms".format(ping_intrapod_avg0 / 10))
+print("ping avg rtt h10012 -> h10002: {}ms".format(ping_intrapod_avg1 / 10))
 print(
-    "iperf h10002 {} <-> h10012 {} ".format(perf_interpod[0], perf_interpod[1]))
+    "iperf h10002 {} <-> h10012 {} ".format(perf_intrapod[0], perf_intrapod[1]))
 
 print("Results furthest:")
-print("ping avg rtt h10002 -> h10313: {}ms".format(ping_furthest[1][2][3]))
-print("ping avg rtt h10313 -> h10002: {}ms".format(ping_furthest[0][2][3]))
+print("ping avg rtt h10002 -> h10313: {}ms".format(ping_furthest_avg0 / 10))
+print("ping avg rtt h10313 -> h10002: {}ms".format(ping_furthest_avg1 / 10))
 print(
     "iperf h10002 {} <-> h10313 {} ".format(perf_furthest[0], perf_furthest[1]))
