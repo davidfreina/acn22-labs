@@ -1,11 +1,11 @@
-\documentclass[a4paper,11pt]{article} 
+\documentclass[a4paper,11pt]{article}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 
-\usepackage{multirow} 
-\usepackage{booktabs} 
-\usepackage{graphicx} 
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{graphicx}
 \usepackage{setspace}
 \usepackage[skip=6pt plus1pt, indent=0pt]{parskip}
 
@@ -17,7 +17,7 @@
 \hypersetup{
     colorlinks=true,
     linkcolor=blue,
-    filecolor=magenta,      
+    filecolor=magenta,
     urlcolor=blue
 }
 
@@ -31,38 +31,38 @@
 
 \newcommand{\note}[1]{\textit{\textcolor{gray}{#1}}}
 
-\pagestyle{fancy} 
-\fancyhf{} 
+\pagestyle{fancy}
+\fancyhf{}
 \lhead{Advanced Computer Networks 2022}
-\rhead{Lin Wang, George Karlos, Florian Gerlinghoff} 
-\cfoot{\thepage} 
+\rhead{Lin Wang, George Karlos, Florian Gerlinghoff}
+\cfoot{\thepage}
 
 \begin{document}
 
 
-\thispagestyle{empty} 
+\thispagestyle{empty}
 
-\begin{tabular}{@{}p{15.5cm}} 
+\begin{tabular}{@{}p{15.5cm}}
 {\bf Advanced Computer Networks 2022} \\
 Vrije Universiteit Amsterdam  \\ Lin Wang, George Karlos, Florian Gerlinghoff\\
-\hline 
+\hline
 \\
-\end{tabular} 
+\end{tabular}
 
-\vspace*{0.3cm} 
+\vspace*{0.3cm}
 
-{\LARGE \bf Lab3: Building Your Data Center Network (Report)} 
+{\LARGE \bf Lab3: Building Your Data Center Network (Report)}
 
-\vspace*{0.3cm} 
+\vspace*{0.3cm}
 
 %============== Please do not change anything above ==============%
 
 % Please modify this part with your group information
 \begin{tcolorbox}[sharp corners, colback=blue!5!white]
 \begin{tabular}{@{}ll}
-\textbf{Group number:} & <your group number on Canvas> \\
-\textbf{Group members:} & <names of group members> \\
-\textbf{Slip days used:} & <number of slip days used> \\
+\textbf{Group number:} & 28 \\
+\textbf{Group members:} & David Freina, Jonas Wagner \\
+\textbf{Slip days used:} & 0 \\
 \end{tabular}
 \end{tcolorbox}
 
@@ -71,28 +71,184 @@ Vrije Universiteit Amsterdam  \\ Lin Wang, George Karlos, Florian Gerlinghoff\\
 % Please do not remove any of the section headings below
 
 \section{Building a Fat-tree Data Center Network in Mininet}
-
+\label{sec:building-fat-tree-mininet}
 % Start your writing here, feel free to include subsections to structure your report if needed
 % Please remove the note below in your submission
-\note{Please explain the high-level idea.}
+% \note{Please explain the high-level idea.}
+
+The basic idea is to use the previously created Fat-tree and the Mininet functions to create the switches, hosts and links.
+With the shortest-path routing we do not have to worry about the port mappings on the switches because we get the correct port by using the function to get the topology information in Ryu.
+However, to comply with the two-level routing table we had to add the links in Mininet in a very specific way so that the port numbers in Mininet correlate to the port numbers of the algorithm that generates the two-level routing table.
+To achieve that correlation the servers first had to be connected to the edge switches  in the right order.
+Therefore, for every edge switch the first host with 10.x.x.2 up to the last host with 10.x.x.y (in our example 10.0.0.2 and 10.0.0.3) will be connected.
+Secondly, all the edge switches need to be connected to their aggregation switches in the right order.
+Similar to above the ordering happens from left to right/from numerical lowest to numerical highest subnet.
+Last but not least, using the same order the aggregation switches will be connected to the core switches.
+
+By strictly following this connection pattern and the specified ordering the same port mappings as in the algorithm will be achieved.
+
 
 \section{Implementing Shortest-Path Routing in the Fat-tree Network}
 
 % Start your writing here, feel free to include subsections to structure your report if needed
 % Please remove the note below in your submission
-\note{Please explain the high-level idea, as well as important details in your implementation.}
+%\note{Please explain the high-level idea, as well as important details in your implementation.}
+
+We implemented the shortest path routing by using a directed graph from \textit{networkx}.
+This offers more options for accessing the network than just calculating the shortest paths (which we implemented for the last assignment).
+Furthermore, we do not have to care about multiple lists and could simply extend or crop the topology of the network.
+During the initialization and when the RYU controller is discovering the topology we add all discovered links of the switches bidirectional to the graph.\\
+When the initialization is finished and the first packets have to be handled, we start flooding the network with ARP to fill up the port mapping tables.
+The ARP packets are handled the following way:
+\begin{enumerate}
+    \item adding new sources to a list of known hosts if they are not already known
+    \item adding the new discovered nodes to the network topology graph
+    \item flooding the network if the destination is not known so far or adding a flow entry (s. IPv4 handling) if the destination is already in the known hosts list
+\end{enumerate}
+Incoming IPv4 packets are handled by adding a flow entry:
+\begin{itemize}
+    \item calculating the shortest path from the source to the destination by using the \textit{shortest\_path} method of the \textit{networkx} graph if the destination is already known
+\end{itemize}
+
+\note{PS: We would also be able to implement the shortest path routing with our own dijkstra implementation from last week. Here is a short summary how that would work: First we would calculate all the shortest paths for all switches when initializing the SPRouter. Furthermore, instead of the nx.shortest\_path we would get all the shortest paths for the current switch and find the path to the destination. With this path we can then look at the next hop by looking at the first element in the path. By using the next hop and the information obtained by get\_links() we would be able to find the port which we would have to use for the package to forward. We can continue doing this until we have completed all the flows in the network.}
 
 \section{Implementing Two-Level Routing in the Fat-tree Network}
 
 % Start your writing here, feel free to include subsections to structure your report if needed
 % Please remove the note below in your submission
-\note{Please explain the high-level idea, as well as important details in your implementation. If a similar part has already been mentioned in last section, you do not have to repeat the same and can simply refer to it here.}
+% \note{Please explain the high-level idea, as well as important details in your implementation. If a similar part has already been mentioned in last section, you do not have to repeat the same and can simply refer to it here.}
+
+We strictly adhere to the presented algorithm to create the two-level routing tables.
+All the routing tables are stored per switch and can then be accessed when packets arrive.
+Due to the specific creation of the network mentioned in \autoref{sec:building-fat-tree-mininet} we are able to use the ports exactly as the algorithm calculates them.
+Therefore, the routing becomes trivially simple (s. \autoref{fig:two-level-routing-table-flowchart}):
+
+\begin{enumerate}
+    \item Get the routing tables for switch which received the packet
+    \item Iterate over all entries in the first level table
+    \item Check if the entry has second level table (by checking if subnet is zero)
+    \item With the subnet check how many of the octets (n) of the prefix/suffix have to match
+    \item Check if the first/last n octets of the prefix/suffix and the destination IP match
+    \begin{itemize}
+        \item if yes: return port for prefix/suffix
+        \item if no: look at next prefix/suffix
+    \end{itemize}
+\end{enumerate}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[scale=0.25]{acn/lab3/figures/flowchart.png}
+    \caption{Two-Level Routing Table Flowchart}
+    \label{fig:two-level-routing-table-flowchart}
+\end{figure}
+
+\begin{comment}
+Get the routing tables for switch which received the packet
+  Iterate over all entries in the first level table
+    Check if the entry has second level table
+      subnet is zero
+        yes - match prefix: first %28n%29 octets have to match
+          [match] match: return port for prefix/suffix
+          [nomatch] no match: look at next prefix/suffix
+        no - match suffix: last %28n%29 octets have to match
+          match: (match)
+          no match: (nomatch)
+\end{comment}
+
 
 \section{Comparing the Performance of the Two Routing Schemes}
 
 % Start your writing here, feel free to include subsections to structure your report if needed
 % Please remove the note below in your submission
-\note{Please explain the design of your experiment, the setup, and parameters. Also, please include the reasoning of your design (answers to questions like why this particular experiment can best show the performance difference between the two routing schemes, why the parameters have to be set that way). Then, please include your experiment results, discuss the results, and try to make conclusions from the results.}
+%\note{Please explain the design of your experiment, the setup, and parameters. Also, please include the reasoning of your design (answers to questions like why this particular experiment can best show the performance difference between the two routing schemes, why the parameters have to be set that way). Then, please include your experiment results, discuss the results, and try to make conclusions from the results.}
 
+If you want to start the automated benchmark, execute the \emph{./bench.sh} in the lab 3 directory.
+Then mininet will be started and waits for you to run the RYU manager in another terminal (\emph{ryu-manager ./sp\_routing.py --observe-links} or \emph{ryu-manager ./ft\_routing.py --observe-links}) with the specified routing implementation and the observe-links parameter.
+After the RYU manager is started the testing will be done automatically and you will receive the results in the terminal where you executed mininet shortly after.
+
+\subsection{Experiments}
+For the experiment we implemented an automatic benchmark which is in the file \emph{bench.py}.
+We selected 4 different servers within the network, where server1 and server2 are connected to the same edge switch, server3 is in the same pod as server1, and server4 which is connected to the fourth and therefore different pod.
+In the beginning we are testing the warm-up ping of the network (flooding is only necessary for the shortest path routing).
+The warmup for the shortest path routing takes around 10ms while the two-level routing takes as long as an average \emph{pingAll} command.
+After that we are running ten iterations of the \emph{pingAll} command and calculating the average runtime of these executions.\\
+The servers are grouped in three tuples:
+\begin{itemize}
+    \item Nearest: server1 and server2
+    \item Intrapod: server1 and server3
+    \item Furthest: server1 and server4
+\end{itemize}
+These tuples are benchmarked \emph{pingFull} and \emph{iperf}.
+For the ping results see \autoref{fig:ping-avg-rtt} which shows the round-trip-times (\textit{RTT}) for each combination in each direction of the link.
+The results are the averages of ten pings.
+We observe a short RTT for the nearest tuple since it just needs one hop.
+The intrapod ping has to take 3 hops (edge, aggregation, edge), hence takes a little bit longer.
+For the furthest tuple, which has to go all the way up to the core switch level, we see the longest RTTs.\\
+The bandwidth results are displayed in \autoref{fig:iperf-bw}.
+Obviously the bandwidth shrinks proportional to number of hops a packet has to take.
+
+\subsection{Findings}
+
+We can observe that the only relevant difference between the two routing variants is the topology discovery.
+Due to the flooding needed for the shortest-path routing the discovery takes approximately 10ms while the discovery for the two-level routing only takes approximately 5ms.
+This discrepancy arises because the two-level routing does not need the flooding due to its statically defined routing tables.
+
+All the other test yielded similar results between both routing variants.
+This can be explained because the amount of hops will not change between the different paths taken for the shortest-path and two-level routing.
+
+We are also able to see that the reverse route for the rtt is much larger (1.5-3x) than the original route for hops > 1 (s. \autoref{fig:ping-avg-rtt}).
+We are unable to explain why this behaviour occurs.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[scale=0.6]{acn/lab3/figures/bar-graph-rtt-10.png}
+    \caption{Ping average RTT of nearest, intrapod and furthest server tuple}
+    \label{fig:ping-avg-rtt}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[scale=0.6]{acn/lab3/figures/bar-graph-iperf.png}
+    \caption{iPerf bandwidth of nearest, intrapod and furthest server tuple}
+    \label{fig:iperf-bw}
+\end{figure}
+
+\begin{comment}
+Shortest path routing:
+Discovering topology took:      10.447324752807617
+Average of 10 pingAll took:     4.478760123252869
+----------------------------------------
+Results nearest:
+ping avg rtt h10002 -> h10003: 8.1676ms
+ping avg rtt h10003 -> h10002: 10.3411ms
+iperf h10002 6.69 Mbits/sec <-> h10003 7.71 Mbits/sec
+Results intrapod:
+ping avg rtt h10002 -> h10012: 12.2364ms
+ping avg rtt h10012 -> h10002: 29.0252ms
+iperf h10002 2.16 Mbits/sec <-> h10012 2.65 Mbits/sec
+Results furthest:
+ping avg rtt h10002 -> h10313: 17.9409ms
+ping avg rtt h10313 -> h10002: 30.8315ms
+iperf h10002 1.29 Mbits/sec <-> h10313 1.98 Mbits/sec
+
+
+
+Two-Level routing:
+Discovering topology took:      5.356467962265015
+Average of 10 pingAll took:     4.152475214004516
+----------------------------------------
+Results nearest:
+ping avg rtt h10002 -> h10003: 8.8902ms
+ping avg rtt h10003 -> h10002: 8.5235ms
+iperf h10002 7.51 Mbits/sec <-> h10003 8.76 Mbits/sec
+Results intrapod:
+ping avg rtt h10002 -> h10012: 12.6144ms
+ping avg rtt h10012 -> h10002: 31.0049ms
+iperf h10002 2.65 Mbits/sec <-> h10012 3.25 Mbits/sec
+Results furthest:
+ping avg rtt h10002 -> h10313: 18.7177ms
+ping avg rtt h10313 -> h10002: 38.9701ms
+iperf h10002 1.51 Mbits/sec <-> h10313 1.95 Mbits/sec
+\end{comment}
 
 \end{document}
