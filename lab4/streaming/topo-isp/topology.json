@@ -30,7 +30,8 @@
             "runtime_json": "topo-isp/s1-runtime.json"
         },
         "s2": {
-            "runtime_json": "topo-isp/s2-runtime.json"
+            "runtime_json": "topo-isp/s2-runtime.json",
+            "cli_input": "topo-isp/s2-commands.txt"
         },
         "s3": {
             "runtime_json": "topo-isp/s3-runtime.json"

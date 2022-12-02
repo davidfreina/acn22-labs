@@ -1,11 +1,11 @@
-\documentclass[a4paper,11pt]{article} 
+\documentclass[a4paper,11pt]{article}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 
-\usepackage{multirow} 
-\usepackage{booktabs} 
-\usepackage{graphicx} 
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{graphicx}
 \usepackage{setspace}
 \usepackage[skip=6pt plus1pt, indent=0pt]{parskip}
 
@@ -17,7 +17,7 @@
 \hypersetup{
     colorlinks=true,
     linkcolor=blue,
-    filecolor=magenta,      
+    filecolor=magenta,
     urlcolor=blue
 }
 
@@ -31,38 +31,38 @@
 
 \newcommand{\note}[1]{\textit{\textcolor{gray}{#1}}}
 
-\pagestyle{fancy} 
-\fancyhf{} 
+\pagestyle{fancy}
+\fancyhf{}
 \lhead{Advanced Computer Networks 2022}
-\rhead{Lin Wang, George Karlos, Florian Gerlinghoff} 
-\cfoot{\thepage} 
+\rhead{Lin Wang, George Karlos, Florian Gerlinghoff}
+\cfoot{\thepage}
 
 \begin{document}
 
 
-\thispagestyle{empty} 
+\thispagestyle{empty}
 
-\begin{tabular}{@{}p{15.5cm}} 
+\begin{tabular}{@{}p{15.5cm}}
 {\bf Advanced Computer Networks 2022} \\
 Vrije Universiteit Amsterdam  \\ Lin Wang, George Karlos, Florian Gerlinghoff\\
-\hline 
+\hline
 \\
-\end{tabular} 
+\end{tabular}
 
-\vspace*{0.3cm} 
+\vspace*{0.3cm}
 
-{\LARGE \bf Lab4: Who Is Watching My Video? (Report)} 
+{\LARGE \bf Lab4: Who Is Watching My Video? (Report)}
 
-\vspace*{0.3cm} 
+\vspace*{0.3cm}
 
 %============== Please do not change anything above ==============%
 
 % Please modify this part with your group information
 \begin{tcolorbox}[sharp corners, colback=blue!5!white]
 \begin{tabular}{@{}ll}
-\textbf{Group number:} & <your group number on Canvas> \\
-\textbf{Group members:} & <names of group members> \\
-\textbf{Slip days used:} & <number of slip days used> \\
+\textbf{Group number:} & 28 \\
+\textbf{Group members:} & David Freina, Jonas Wagner \\
+\textbf{Slip days used:} & 0 \\
 \end{tabular}
 \end{tcolorbox}
 
@@ -71,21 +71,64 @@ Vrije Universiteit Amsterdam  \\ Lin Wang, George Karlos, Florian Gerlinghoff\\
 % Please do not remove any of the section headings below
 
 \section{Implementing an IPv4 Router in P4}
-
+\label{sec:implementing-router}
 % Start your writing here, feel free to include subsections to structure your report if needed
 % Please remove the note below in your submission
-\note{Please explain the high-level idea, as well as important details in your implementation.}
+%\note{Please explain the high-level idea, as well as important details in your implementation.}
+
+First we start by implementing the required headers with their respective bit fields according to the lecture slides as well as the P4 documentation.
+Apart from that we also add a struct to combine the ipv4 and ethernet header to comply with the given parser/control-block signatures.
+The parser \textit{MyParser} is implemented similar to the parser presented on the lecture slides though we omit the TCP and UDP parsing.
+Our next step is to complete the ingress processing by adding to actions: \textit{drop} and \textit{ipv4\_forward}.
+To tell the router when it needs to take which action we define a table which matches based on the longest-prefix match for the IPv4 destination address.
+If the address matches the packet gets forwarded to the specified port, the TTL of the packet is decreased by 1 and the source and destination mac addresses are updated accordingly.
+Last but not least we implement the \textit{MyComputeChecksum} as well as \textit{MyDeparser} analogous to the lecture slides.\\
+In addition to the router implementation we update the s1- to s3-runtime.json to provide correct static forwarding tables with the necessary entries for the switches.
+Testing our implementation by using mininets \textit{pingall} command works correctly.
+
 
 \section{Intercepting RTP Video Streaming with P4}
 
 % Start your writing here, feel free to include subsections to structure your report if needed
 % Please remove the note below in your submission
-\note{Please explain the high-level idea, as well as important details in your implementation.}
+%\note{Please explain the high-level idea, as well as important details in your implementation.}
 
-\section{References}
+\subsection{Streaming h1-h7}
 
-% Start your writing here, please remove the note below in your submission
-\note{Include your references if any; otherwise remove this section.}
+In order to implement the streaming for h1 to h7 we re-use our router implementation from \autoref{sec:implementing-router}.
+We then fill in the details needed for the correct routing in the s1- to s7-runtime.json by adding table, match and action entries.
+
+\subsection{Intercepting the stream}
+
+We tried intercepting the stream by using a multicast group defined in s2-runtime.json (l. 55-69) which allowed us to forward all packets to two different ports.
+This implementation worked in the sense that we were able to see all the packets from the RTP stream on h3 as well as h7.
+Furthermore, we were able to start the stream on h7 but unable to start it on h3.
+
+Due to this limitation we decided to try and clone the packets which arrive on s2 and forward the cloned packets to s3.
+To allow us to do this we have to edit the topology slightly by adding the parameter \textit{cli\_input} to s2 (topology.json: l. 34).
+This parameter allows us to load the commands stored in the file \textit{s2-commands.txt} which enables us to clone the packets on a specific port with a specific group id.
+We then proceed by checking in the ingress pipeline if the packet has certain destination and source IP addresses (namely 10.0.7.7 and 10.0.1.1).
+If those addresses match we clone the packets with the \textit{clone\_packet} method from ingress to egress.
+
+In the egress pipeline we check if the packet was cloned and than proceed by rewriting the headers for those packets (methods change\_h1\_to\_h7\_addr and change\_h7\_to\_h1\_addr).
+Depending on which direction the packets were going we rewrite the source and destination IP and MAC addresses as well as the egress port accordingly.
+
+With this new implementation in place we are again able to see the RTP packets arriving at h3 and h7.
+But similar to our first implementation we are again unable to playback the stream on h3 while the playback on h7 still works.
+However, we than add the checksum recalculation for the extracted UDP header and the streaming now works on both h3 and h7 simultaneously.
+% We are unsure if the multicast implementation would have worked with the correct checksum calculation.
+
+% \subsubsection{Debugging steps to enable playback on h3}
+
+% At first we were thinking that our multicast implementation cannot work because a multicast stream would need a source IP address of 224.0.0.0 through 239.255.255.255.
+% As mentioned before we tried to get around this issue by cloning the packets rather than forwarding with the multicast which also did not work.
+
+% Furthermore, we were able to see some ICMP packets from h7 to h1 which we try to clone as well.
+% For the cloning to work correctly we changed the source IP address from 10.0.7.7 to 10.0.3.3.
+% After this did not work we realized that this ICMP message embeds the last IP header which again had the wrong address set.
+% We decided to change this address as well which then lead to a checksum mismatch error which we observed in WireShark.
+
+% This is the current state of the implementation and no further debugging steps were taken.
 
 
 \end{document}
